@@ -12,8 +12,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { copyToWorktree } from "./CopyToWorktree.js";
+import { copyToWorktree, getCopyOnWriteFlags } from "./CopyToWorktree.js";
 import { CopyToWorktreeError, CopyToWorktreeTimeoutError } from "./errors.js";
+
+describe("getCopyOnWriteFlags", () => {
+  it("returns -cR on darwin (APFS clonefile)", () => {
+    expect(getCopyOnWriteFlags("darwin")).toEqual(["-cR"]);
+  });
+
+  it("returns -R --reflink=auto on linux", () => {
+    expect(getCopyOnWriteFlags("linux")).toEqual(["-R", "--reflink=auto"]);
+  });
+
+  it("preserves the existing flags for other Unix-like platforms", () => {
+    expect(getCopyOnWriteFlags("freebsd")).toEqual(["-R", "--reflink=auto"]);
+  });
+});
 
 const symlinkSupported = await (async () => {
   const probe = await mkdtemp(join(tmpdir(), "cw-sym-probe-"));
@@ -66,27 +80,30 @@ describe("copyToWorktree", () => {
     }
   });
 
-  it("merges into an existing destination directory without nesting", async () => {
-    const hostDir = await mkdtemp(join(tmpdir(), "cw-test-"));
-    const worktreeDir = await mkdtemp(join(tmpdir(), "cw-wt-"));
+  it.skipIf(process.platform !== "win32")(
+    "merges into an existing destination directory on Windows without nesting",
+    async () => {
+      const hostDir = await mkdtemp(join(tmpdir(), "cw-test-"));
+      const worktreeDir = await mkdtemp(join(tmpdir(), "cw-wt-"));
 
-    await mkdir(join(hostDir, "tree"));
-    await writeFile(join(hostDir, "tree", "fresh.txt"), "fresh");
+      await mkdir(join(hostDir, "tree"));
+      await writeFile(join(hostDir, "tree", "fresh.txt"), "fresh");
 
-    await mkdir(join(worktreeDir, "tree"));
-    await writeFile(join(worktreeDir, "tree", "stale.txt"), "stale");
+      await mkdir(join(worktreeDir, "tree"));
+      await writeFile(join(worktreeDir, "tree", "stale.txt"), "stale");
 
-    try {
-      await Effect.runPromise(copyToWorktree(["tree"], hostDir, worktreeDir));
+      try {
+        await Effect.runPromise(copyToWorktree(["tree"], hostDir, worktreeDir));
 
-      expect(existsSync(join(worktreeDir, "tree", "fresh.txt"))).toBe(true);
-      expect(existsSync(join(worktreeDir, "tree", "stale.txt"))).toBe(true);
-      expect(existsSync(join(worktreeDir, "tree", "tree"))).toBe(false);
-    } finally {
-      await rm(hostDir, { recursive: true, force: true });
-      await rm(worktreeDir, { recursive: true, force: true });
-    }
-  });
+        expect(existsSync(join(worktreeDir, "tree", "fresh.txt"))).toBe(true);
+        expect(existsSync(join(worktreeDir, "tree", "stale.txt"))).toBe(true);
+        expect(existsSync(join(worktreeDir, "tree", "tree"))).toBe(false);
+      } finally {
+        await rm(hostDir, { recursive: true, force: true });
+        await rm(worktreeDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it.skipIf(!symlinkSupported)(
     "preserves symlinks with their original relative target",

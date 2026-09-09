@@ -22,8 +22,19 @@ jobs:
           node -p "process.platform + ' ' + process.arch"
           Write-Host "PowerShell cp resolves to:"
           Get-Command cp | Format-List Name,CommandType,Source,Definition
-          Write-Host "Executable cp.exe on PATH:"
+          Write-Host "Executable cp.exe on normal PATH:"
           where.exe cp
-        continue-on-error: true
-      - name: Reproduce CopyToWorktree behavior
-        run: npx vitest run src/CopyToWorktree.test.ts --reporter=verbose
+      - name: Reproduce without Git Unix tools
+        shell: pwsh
+        run: |
+          $nodeDir = Split-Path (Get-Command node).Source
+          $env:PATH = "$nodeDir;$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+
+          Write-Host "Sanitized PATH: $env:PATH"
+          Write-Host "Executable cp.exe after sanitizing PATH (expected: none):"
+          where.exe cp
+          if ($LASTEXITCODE -eq 0) {
+            throw "cp.exe is still present on sanitized PATH; diagnostic is invalid"
+          }
+
+          npx.cmd vitest run src/CopyToWorktree.test.ts --reporter=verbose

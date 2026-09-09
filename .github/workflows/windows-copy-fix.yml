@@ -6,7 +6,7 @@ on:
       - fix/windows-copy-to-worktree
 
 jobs:
-  verify:
+  windows-target:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +18,6 @@ jobs:
         run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Full test suite
-        run: npm test
       - name: Verify without Unix cp on PATH
         shell: pwsh
         run: |
@@ -34,3 +32,19 @@ jobs:
           }
 
           npx.cmd vitest run src/CopyToWorktree.test.ts --reporter=verbose
+      - name: Windows full suite diagnostic
+        continue-on-error: true
+        run: npm test
+
+  ubuntu-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test

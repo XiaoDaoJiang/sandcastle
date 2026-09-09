@@ -1,0 +1,29 @@
+name: Windows copyToWorktree diagnostic
+
+on:
+  push:
+    branches:
+      - test/windows-copy-to-worktree
+
+jobs:
+  reproduce:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Windows environment diagnostics
+        shell: pwsh
+        run: |
+          node -p "process.platform + ' ' + process.arch"
+          Write-Host "PowerShell cp resolves to:"
+          Get-Command cp | Format-List Name,CommandType,Source,Definition
+          Write-Host "Executable cp.exe on PATH:"
+          where.exe cp
+        continue-on-error: true
+      - name: Reproduce CopyToWorktree behavior
+        run: npx vitest run src/CopyToWorktree.test.ts --reporter=verbose

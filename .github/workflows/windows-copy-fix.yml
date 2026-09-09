@@ -1,0 +1,36 @@
+name: Windows copyToWorktree fix
+
+on:
+  push:
+    branches:
+      - fix/windows-copy-to-worktree
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Full test suite
+        run: npm test
+      - name: Verify without Unix cp on PATH
+        shell: pwsh
+        run: |
+          $nodeDir = Split-Path (Get-Command node).Source
+          $env:PATH = "$nodeDir;$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
+
+          Write-Host "Sanitized PATH: $env:PATH"
+          Write-Host "Executable cp.exe after sanitizing PATH (expected: none):"
+          where.exe cp
+          if ($LASTEXITCODE -eq 0) {
+            throw "cp.exe is still present on sanitized PATH; diagnostic is invalid"
+          }
+
+          npx.cmd vitest run src/CopyToWorktree.test.ts --reporter=verbose

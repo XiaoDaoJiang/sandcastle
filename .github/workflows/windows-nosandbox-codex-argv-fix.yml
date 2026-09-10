@@ -18,21 +18,18 @@ jobs:
         with:
           ref: fix/windows-nosandbox-codex-argv
           fetch-depth: 0
-      - name: Apply scoped source patch
-        run: |
-          python scripts/apply-windows-nosandbox-codex-argv.py
-          python scripts/refine-windows-nosandbox-argv.py
-          python scripts/fix-windows-nosandbox-stdin-bridge.py
+      - name: Apply remaining stdin refinement
+        run: python scripts/fix-windows-nosandbox-stdin-bridge.py
       - name: Commit patch when needed
         shell: bash
         run: |
           if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
-            echo "Patch already applied"
+            echo "Refinement already applied"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/AgentProvider.ts src/SandboxProvider.ts src/SandboxFactory.ts src/Orchestrator.ts src/sandboxes/no-sandbox.ts src/CodexArgv.test.ts .changeset/fix-windows-nosandbox-codex-argv.md
+          git add src/sandboxes/no-sandbox.ts
           git commit -m "fix: forward stdin through Windows structured argv bridge"
           git push origin HEAD:fix/windows-nosandbox-codex-argv
       - id: sha

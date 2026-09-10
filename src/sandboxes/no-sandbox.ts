@@ -84,16 +84,44 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
             "pipe",
           ];
           const structuredArgv = isWindows ? opts?.argv : undefined;
+          // Windows npm-installed agent CLIs are commonly `.cmd` wrappers.
+          // `spawn(exe, args, { shell: true })` would flatten the args back into
+          // a cmd.exe command string, losing the structured boundary and making
+          // spaces/metacharacters unsafe. Instead pass argv as base64 JSON data
+          // to a fixed PowerShell bridge and splat it as an argument array.
+          const structuredEnv = structuredArgv?.length
+            ? {
+                ...processEnv,
+                SANDCASTLE_EXEC_ARGV_B64: Buffer.from(
+                  JSON.stringify(structuredArgv),
+                  "utf8",
+                ).toString("base64"),
+              }
+            : processEnv;
+          const powershellArgvBridge =
+            '$json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:SANDCASTLE_EXEC_ARGV_B64)); ' +
+            '$argv = @(ConvertFrom-Json $json); ' +
+            'if ($argv.Count -eq 0) { exit 1 }; ' +
+            '$exe = [string]$argv[0]; ' +
+            '$rest = @($argv | Select-Object -Skip 1); ' +
+            '& $exe @rest; ' +
+            'if ($null -eq $LASTEXITCODE) { exit 0 } else { exit $LASTEXITCODE }';
           const proc = structuredArgv?.length
-            ? spawn(structuredArgv[0]!, [...structuredArgv.slice(1)], {
-                cwd,
-                env: processEnv,
-                stdio,
-                // Agent CLIs installed by npm are commonly .cmd wrappers.
-                // Let cmd.exe resolve PATHEXT, while Node serializes the
-                // already-structured args instead of reusing POSIX quoting.
-                shell: true,
-              })
+            ? spawn(
+                "powershell.exe",
+                [
+                  "-NoLogo",
+                  "-NoProfile",
+                  "-NonInteractive",
+                  "-Command",
+                  powershellArgvBridge,
+                ],
+                {
+                  cwd,
+                  env: structuredEnv,
+                  stdio,
+                },
+              )
             : spawn(shellCmd, shellArgs, {
                 cwd,
                 env: processEnv,

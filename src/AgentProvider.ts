@@ -831,14 +831,14 @@ export const codex = (
         "-s",
         "danger-full-access",
         "-c",
-        'approvals_reviewer="auto_review"',
+        "approvals_reviewer=auto_review",
       );
     } else {
       argv.push("--dangerously-bypass-approvals-and-sandbox");
     }
     argv.push("-m", model);
     if (options?.effort) {
-      argv.push("-c", `model_reasoning_effort="${options.effort}"`);
+      argv.push("-c", `model_reasoning_effort=${options.effort}`);
     }
     if (resumeSession) {
       argv.push("-");

@@ -1,0 +1,20 @@
+name: Windows Codex command diagnostic
+
+on:
+  push:
+    branches:
+      - test/windows-codex-command-quoting
+
+jobs:
+  windows-codex-command:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Reproduce Codex argv quoting through noSandbox
+        run: npx vitest run src/WindowsCodexCommand.integration.test.ts --reporter=verbose

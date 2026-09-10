@@ -117,6 +117,7 @@ describe("Windows Codex command integration", () => {
   itWindows("rejects CR or LF in structured argv", async () => {
     const handle = await noSandbox().create({
       worktreePath: process.cwd(),
+      env: {},
     });
 
     try {

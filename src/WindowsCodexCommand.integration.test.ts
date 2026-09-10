@@ -81,7 +81,7 @@ describe("Windows Codex command integration", () => {
   );
 
   itWindows(
-    "preserves Codex effort config quoting through a .cmd wrapper",
+    "passes Codex effort config as one literal argv through a .cmd wrapper",
     async () => {
       const print = codex("test-model", { effort: "high" }).buildPrintCommand({
         prompt: "ping",
@@ -91,13 +91,13 @@ describe("Windows Codex command integration", () => {
       const result = await runThroughFakeCodexCmd(print);
 
       expect(result.exitCode).toBe(0);
-      expect(result.args).toContain('model_reasoning_effort="high"');
+      expect(result.args).toContain("model_reasoning_effort=high");
       expect(result.stdout).toContain("STDIN=ping");
     },
   );
 
   itWindows(
-    "preserves auto-review config quoting through a .cmd wrapper",
+    "passes auto-review config as one literal argv through a .cmd wrapper",
     async () => {
       const print = codex("test-model", {
         approvalsReviewer: "auto_review",
@@ -109,7 +109,7 @@ describe("Windows Codex command integration", () => {
       const result = await runThroughFakeCodexCmd(print);
 
       expect(result.exitCode).toBe(0);
-      expect(result.args).toContain('approvals_reviewer="auto_review"');
+      expect(result.args).toContain("approvals_reviewer=auto_review");
       expect(result.stdout).toContain("STDIN=ping");
     },
   );

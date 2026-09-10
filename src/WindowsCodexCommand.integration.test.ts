@@ -50,6 +50,16 @@ describe("Windows Codex command integration", () => {
           stdin: print.stdin,
           argv: print.argv,
         });
+        console.log(
+          "WINDOWS_CODEX_DIAGNOSTIC",
+          JSON.stringify({
+            command: print.command,
+            argv: print.argv,
+            exitCode: result.exitCode,
+            stdout: result.stdout,
+            stderr: result.stderr,
+          }),
+        );
         expect(result.exitCode).toBe(0);
 
         const args = result.stdout

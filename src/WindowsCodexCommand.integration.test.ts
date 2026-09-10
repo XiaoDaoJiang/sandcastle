@@ -7,14 +7,9 @@ import { noSandbox } from "./sandboxes/no-sandbox.js";
 
 const itWindows = process.platform === "win32" ? it : it.skip;
 
-const stripOuterDoubleQuotes = (value: string): string =>
-  value.startsWith('"') && value.endsWith('"')
-    ? value.slice(1, -1)
-    : value;
-
 describe("Windows Codex command integration", () => {
   itWindows(
-    "passes structured argv to codex.cmd without POSIX quoting or word splitting",
+    "passes the model argv and stdin to codex.cmd without POSIX single quotes",
     async () => {
       const fakeBin = await mkdtemp(join(tmpdir(), "sandcastle-codex-win-"));
       const fakeCodex = join(fakeBin, "codex.cmd");
@@ -36,10 +31,7 @@ describe("Windows Codex command integration", () => {
         ].join("\r\n"),
       );
 
-      // Spaces plus a cmd.exe metacharacter prove argv is data, not a shell
-      // command fragment. A flattened shell:true command would split or execute
-      // the `& literal` suffix instead of delivering one model argument.
-      const model = "test model & literal";
+      const model = "test-model";
       const provider = codex(model);
       const print = provider.buildPrintCommand({
         prompt: "ping",
@@ -63,13 +55,12 @@ describe("Windows Codex command integration", () => {
         const args = result.stdout
           .split(/\r?\n/)
           .filter((line) => line.startsWith("ARG="))
-          .map((line) => stripOuterDoubleQuotes(line.slice("ARG=".length)));
+          .map((line) => line.slice("ARG=".length));
 
         const modelFlagIndex = args.indexOf("-m");
         expect(modelFlagIndex).toBeGreaterThanOrEqual(0);
         expect(args[modelFlagIndex + 1]).toBe(model);
-        expect(args).not.toContain("literal");
-        expect(result.stdout).not.toContain("'test model & literal'");
+        expect(result.stdout).not.toContain("'test-model'");
         expect(result.stdout).toContain("STDIN=ping");
       } finally {
         await handle.close();

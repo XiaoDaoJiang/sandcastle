@@ -18,8 +18,14 @@ jobs:
         with:
           ref: fix/windows-nosandbox-codex-argv
           fetch-depth: 0
-      - name: Apply remaining stdin refinement
-        run: python scripts/fix-windows-nosandbox-stdin-bridge.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply cross-spawn refinement
+        run: |
+          python scripts/switch-windows-nosandbox-to-cross-spawn.py
+          npm install cross-spawn@7.0.6 --save
       - name: Commit patch when needed
         shell: bash
         run: |
@@ -29,8 +35,8 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sandboxes/no-sandbox.ts
-          git commit -m "fix: forward stdin through Windows structured argv bridge"
+          git add src/sandboxes/no-sandbox.ts package.json package-lock.json
+          git commit -m "fix: use cross-spawn for Windows structured argv"
           git push origin HEAD:fix/windows-nosandbox-codex-argv
       - id: sha
         name: Resolve patched branch SHA

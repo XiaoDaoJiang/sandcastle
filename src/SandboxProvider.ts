@@ -43,6 +43,8 @@ export interface BindMountSandboxHandle {
       cwd?: string;
       sudo?: boolean;
       stdin?: string;
+      /** Optional structured argv hint for host-native execution. */
+      argv?: readonly string[];
     },
   ): Promise<ExecResult>;
   /**
@@ -120,6 +122,8 @@ export interface IsolatedSandboxHandle {
       cwd?: string;
       sudo?: boolean;
       stdin?: string;
+      /** Optional structured argv hint for host-native execution. */
+      argv?: readonly string[];
     },
   ): Promise<ExecResult>;
   /**
@@ -212,6 +216,8 @@ export interface NoSandboxHandle {
       cwd?: string;
       sudo?: boolean;
       stdin?: string;
+      /** Optional structured argv hint for host-native execution. */
+      argv?: readonly string[];
     },
   ): Promise<ExecResult>;
   /**

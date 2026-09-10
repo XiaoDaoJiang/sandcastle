@@ -61,6 +61,8 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
           cwd?: string;
           sudo?: boolean;
           stdin?: string;
+          /** Structured argv supplied by an agent provider when available. */
+          argv?: readonly string[];
         },
       ): Promise<ExecResult> => {
         // sudo is a no-op for no-sandbox — the user is already on the host
@@ -76,16 +78,28 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
           : ["-c", command];
 
         return new Promise((resolve, reject) => {
-          const proc = spawn(shellCmd, shellArgs, {
-            cwd,
-            env: processEnv,
-            stdio: [
-              opts?.stdin !== undefined ? "pipe" : "ignore",
-              "pipe",
-              "pipe",
-            ],
-            windowsVerbatimArguments: isWindows,
-          });
+          const stdio: StdioOptions = [
+            opts?.stdin !== undefined ? "pipe" : "ignore",
+            "pipe",
+            "pipe",
+          ];
+          const structuredArgv = isWindows ? opts?.argv : undefined;
+          const proc = structuredArgv?.length
+            ? spawn(structuredArgv[0]!, [...structuredArgv.slice(1)], {
+                cwd,
+                env: processEnv,
+                stdio,
+                // Agent CLIs installed by npm are commonly .cmd wrappers.
+                // Let cmd.exe resolve PATHEXT, while Node serializes the
+                // already-structured args instead of reusing POSIX quoting.
+                shell: true,
+              })
+            : spawn(shellCmd, shellArgs, {
+                cwd,
+                env: processEnv,
+                stdio,
+                windowsVerbatimArguments: isWindows,
+              });
 
           if (opts?.stdin !== undefined) {
             proc.stdin!.write(opts.stdin);

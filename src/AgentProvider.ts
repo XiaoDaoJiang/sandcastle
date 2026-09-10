@@ -220,6 +220,12 @@ export interface AgentCommandOptions {
 export interface PrintCommand {
   readonly command: string;
   readonly stdin?: string;
+  /**
+   * Optional structured argv for host-native execution. Sandboxed providers
+   * continue to use `command`; native Windows no-sandbox execution can use
+   * argv to avoid applying POSIX shell quoting to cmd.exe.
+   */
+  readonly argv?: readonly string[];
 }
 
 /** Per-iteration token usage snapshot extracted from the agent session. */
@@ -807,9 +813,41 @@ export const codex = (
       base = "codex exec";
     }
     const stdinArg = resumeSession ? " -" : "";
+
+    // Keep the existing shell command unchanged for Docker/Podman/Unix
+    // sandboxes. The structured argv is consumed only by native no-sandbox
+    // execution, where cmd.exe does not understand POSIX single-quote escaping.
+    const argv: string[] = ["codex", "exec"];
+    if (resumeSession && forkSession) {
+      argv.push("fork", resumeSession);
+    } else if (resumeSession) {
+      argv.push("resume", resumeSession);
+    }
+    argv.push("--json");
+    if (options?.approvalsReviewer === "auto_review") {
+      argv.push(
+        "-a",
+        "on-request",
+        "-s",
+        "danger-full-access",
+        "-c",
+        'approvals_reviewer="auto_review"',
+      );
+    } else {
+      argv.push("--dangerously-bypass-approvals-and-sandbox");
+    }
+    argv.push("-m", model);
+    if (options?.effort) {
+      argv.push("-c", `model_reasoning_effort="${options.effort}"`);
+    }
+    if (resumeSession) {
+      argv.push("-");
+    }
+
     return {
       command: `${base} --json${approvalsFlags} -m ${shellEscape(model)}${effortFlag}${stdinArg}`,
       stdin: prompt,
+      argv,
     };
   },
 

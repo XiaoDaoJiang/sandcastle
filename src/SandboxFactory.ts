@@ -43,6 +43,8 @@ export interface SandboxService {
       cwd?: string;
       sudo?: boolean;
       stdin?: string;
+      /** Optional structured argv hint for host-native execution. */
+      argv?: readonly string[];
     },
   ) => Effect.Effect<ExecResult, ExecError>;
 

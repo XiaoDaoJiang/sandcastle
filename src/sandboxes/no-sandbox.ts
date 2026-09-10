@@ -92,11 +92,12 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
           ];
           const structuredArgv = isWindows ? opts?.argv : undefined;
           if (structuredArgv?.some((arg) => /[\r\n]/.test(arg))) {
-            return Promise.reject(
+            reject(
               new Error(
                 "exec failed: structured argv must not contain CR or LF on Windows",
               ),
             );
+            return;
           }
 
           const proc = structuredArgv?.length

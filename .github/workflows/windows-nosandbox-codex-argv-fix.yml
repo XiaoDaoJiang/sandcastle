@@ -22,9 +22,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Apply cross-spawn refinement
+      - name: Apply Windows noSandbox refinements
         run: |
           python scripts/switch-windows-nosandbox-to-cross-spawn.py
+          python scripts/normalize-windows-codex-config-argv.py
           npm install cross-spawn@7.0.6 --save
       - name: Commit patch when needed
         shell: bash
@@ -35,8 +36,8 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/sandboxes/no-sandbox.ts package.json package-lock.json
-          git commit -m "fix: use cross-spawn for Windows structured argv"
+          git add src/AgentProvider.ts src/sandboxes/no-sandbox.ts package.json package-lock.json
+          git commit -m "fix: normalize Windows Codex structured argv"
           git push origin HEAD:fix/windows-nosandbox-codex-argv
       - id: sha
         name: Resolve patched branch SHA

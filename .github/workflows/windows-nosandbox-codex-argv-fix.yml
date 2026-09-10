@@ -1,0 +1,76 @@
+name: Windows noSandbox Codex argv fix
+
+on:
+  push:
+    branches:
+      - fix/windows-nosandbox-codex-argv
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    outputs:
+      patched_sha: ${{ steps.sha.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/windows-nosandbox-codex-argv
+          fetch-depth: 0
+      - name: Apply scoped source patch
+        run: python scripts/apply-windows-nosandbox-codex-argv.py
+      - name: Commit patch when needed
+        shell: bash
+        run: |
+          if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "Patch already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/AgentProvider.ts src/SandboxProvider.ts src/SandboxFactory.ts src/Orchestrator.ts src/sandboxes/no-sandbox.ts src/CodexArgv.test.ts .changeset/fix-windows-nosandbox-codex-argv.md
+          git commit -m "fix: use structured Codex argv on Windows noSandbox"
+          git push origin HEAD:fix/windows-nosandbox-codex-argv
+      - id: sha
+        name: Resolve patched branch SHA
+        shell: bash
+        run: |
+          git fetch origin fix/windows-nosandbox-codex-argv
+          echo "value=$(git rev-parse origin/fix/windows-nosandbox-codex-argv)" >> "$GITHUB_OUTPUT"
+
+  windows-regression:
+    needs: apply
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.patched_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Verify structured Codex argv model
+        run: npx vitest run src/CodexArgv.test.ts --reporter=verbose
+      - name: Re-run real cmd.exe to fake codex.cmd regression
+        run: npx vitest run src/WindowsCodexCommand.integration.test.ts --reporter=verbose
+      - name: Full Windows suite
+        run: npm test
+
+  ubuntu-regression:
+    needs: apply
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.patched_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test

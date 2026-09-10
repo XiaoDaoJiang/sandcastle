@@ -21,11 +21,13 @@ describe("codex structured argv", () => {
     expect(print.command).toContain("-m 'test-model'");
   });
 
-  it("adds effort as one exact config argv value", () => {
+  it("adds effort as one shell-free config argv value", () => {
     const print = codex("test-model", { effort: "high" }).buildPrintCommand(
       commandOptions,
     );
-    expect(print.argv).toContain('model_reasoning_effort="high"');
+    expect(print.argv).toContain("model_reasoning_effort=high");
+    // The existing shell command keeps the TOML-quoted form.
+    expect(print.command).toContain('model_reasoning_effort="high"');
   });
 
   it("builds resume argv and stdin marker", () => {
@@ -74,9 +76,11 @@ describe("codex structured argv", () => {
       "-s",
       "danger-full-access",
       "-c",
-      'approvals_reviewer="auto_review"',
+      "approvals_reviewer=auto_review",
       "-m",
       "test-model",
     ]);
+    // Existing sandbox/Unix command behavior is unchanged.
+    expect(print.command).toContain('approvals_reviewer="auto_review"');
   });
 });

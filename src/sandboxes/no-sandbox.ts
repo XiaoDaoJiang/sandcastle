@@ -12,6 +12,7 @@
  */
 
 import { spawn, type StdioOptions } from "node:child_process";
+import { createRequire } from "node:module";
 import { createInterface } from "node:readline";
 import type {
   NoSandboxProvider,
@@ -20,6 +21,12 @@ import type {
   InteractiveExecOptions,
 } from "../SandboxProvider.js";
 import { BoundedTail, MAX_TAIL_CHARS } from "../boundedTail.js";
+
+// cross-spawn is used only for structured argv on native Windows. It resolves
+// PATHEXT / npm `.cmd` shims and applies Windows argument escaping while
+// preserving stdin/stdout/stderr as normal child-process pipes.
+const require = createRequire(import.meta.url);
+const crossSpawn = require("cross-spawn") as typeof spawn;
 
 export interface NoSandboxOptions {
   /** Environment variables injected by this provider. Merged at launch time. */
@@ -84,49 +91,20 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
             "pipe",
           ];
           const structuredArgv = isWindows ? opts?.argv : undefined;
-          // Windows npm-installed agent CLIs are commonly `.cmd` wrappers.
-          // `spawn(exe, args, { shell: true })` would flatten the args back into
-          // a cmd.exe command string, losing the structured boundary and making
-          // spaces/metacharacters unsafe. Instead pass argv as base64 JSON data
-          // to a fixed PowerShell bridge and splat it as an argument array.
-          const structuredEnv = structuredArgv?.length
-            ? {
-                ...processEnv,
-                SANDCASTLE_EXEC_ARGV_B64: Buffer.from(
-                  JSON.stringify(structuredArgv),
-                  "utf8",
-                ).toString("base64"),
-                SANDCASTLE_EXEC_HAS_STDIN:
-                  opts?.stdin !== undefined ? "1" : "0",
-              }
-            : processEnv;
-          const powershellArgvBridge =
-            '$json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:SANDCASTLE_EXEC_ARGV_B64)); ' +
-            '$argv = @(ConvertFrom-Json $json); ' +
-            'if ($argv.Count -eq 0) { exit 1 }; ' +
-            '$exe = [string]$argv[0]; ' +
-            '$rest = @($argv | Select-Object -Skip 1); ' +
-            'if ($env:SANDCASTLE_EXEC_HAS_STDIN -eq "1") { ' +
-            '$stdinText = [Console]::In.ReadToEnd(); ' +
-            '$stdinText | & $exe @rest; ' +
-            '} else { & $exe @rest }; ' +
-            'if ($null -eq $LASTEXITCODE) { exit 0 } else { exit $LASTEXITCODE }';
+          if (structuredArgv?.some((arg) => /[\r\n]/.test(arg))) {
+            return Promise.reject(
+              new Error(
+                "exec failed: structured argv must not contain CR or LF on Windows",
+              ),
+            );
+          }
+
           const proc = structuredArgv?.length
-            ? spawn(
-                "powershell.exe",
-                [
-                  "-NoLogo",
-                  "-NoProfile",
-                  "-NonInteractive",
-                  "-Command",
-                  powershellArgvBridge,
-                ],
-                {
-                  cwd,
-                  env: structuredEnv,
-                  stdio,
-                },
-              )
+            ? crossSpawn(structuredArgv[0]!, [...structuredArgv.slice(1)], {
+                cwd,
+                env: processEnv,
+                stdio,
+              })
             : spawn(shellCmd, shellArgs, {
                 cwd,
                 env: processEnv,

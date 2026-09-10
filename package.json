@@ -83,7 +83,8 @@
     "zod": "^4.4.3"
   },
   "dependencies": {
-    "@clack/prompts": "^1.1.0"
+    "@clack/prompts": "^1.1.0",
+    "cross-spawn": "^7.0.6"
   },
   "peerDependencies": {
     "@daytona/sdk": "^0.164.0",

@@ -96,6 +96,8 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
                   JSON.stringify(structuredArgv),
                   "utf8",
                 ).toString("base64"),
+                SANDCASTLE_EXEC_HAS_STDIN:
+                  opts?.stdin !== undefined ? "1" : "0",
               }
             : processEnv;
           const powershellArgvBridge =
@@ -104,7 +106,10 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
             'if ($argv.Count -eq 0) { exit 1 }; ' +
             '$exe = [string]$argv[0]; ' +
             '$rest = @($argv | Select-Object -Skip 1); ' +
-            '& $exe @rest; ' +
+            'if ($env:SANDCASTLE_EXEC_HAS_STDIN -eq "1") { ' +
+            '$stdinText = [Console]::In.ReadToEnd(); ' +
+            '$stdinText | & $exe @rest; ' +
+            '} else { & $exe @rest }; ' +
             'if ($null -eq $LASTEXITCODE) { exit 0 } else { exit $LASTEXITCODE }';
           const proc = structuredArgv?.length
             ? spawn(

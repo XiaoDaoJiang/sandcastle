@@ -1,5 +1,11 @@
 # @ai-hero/sandcastle
 
+## 0.12.1
+
+### Patch Changes
+
+- b31b3df: Fix `copyToWorktree` on native Windows hosts so it no longer depends on the Unix `cp` executable being present on `PATH`.
+
 ## 0.12.0
 
 ### Minor Changes

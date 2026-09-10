@@ -113,4 +113,20 @@ describe("Windows Codex command integration", () => {
       expect(result.stdout).toContain("STDIN=ping");
     },
   );
+
+  itWindows("rejects CR or LF in structured argv", async () => {
+    const handle = await noSandbox().create({
+      worktreePath: process.cwd(),
+    });
+
+    try {
+      await expect(
+        handle.exec("ignored", {
+          argv: ["codex", "exec", "bad\nargument"],
+        }),
+      ).rejects.toThrow("structured argv must not contain CR or LF on Windows");
+    } finally {
+      await handle.close();
+    }
+  });
 });

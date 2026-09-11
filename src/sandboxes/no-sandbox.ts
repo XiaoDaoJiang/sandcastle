@@ -69,6 +69,26 @@ export const normalizeCodexCommandForWindows = (command: string): string => {
 };
 
 /**
+ * PowerShell is used as the Windows launcher for interactive host commands.
+ * npm-installed agent CLIs are commonly `.cmd` wrappers, so they cannot be
+ * spawned directly by Node. Passing an argv array together with `shell: true`
+ * is deprecated by Node and, more importantly, loses argument boundaries for
+ * prompts containing spaces/newlines.
+ *
+ * Keep the fixed PowerShell script on argv and pass the target command/argv
+ * through environment variables. PowerShell resolves the external application
+ * and splats the decoded JSON array, preserving each original argument as one
+ * argv value without shell-concatenating user-controlled prompt text.
+ */
+const WINDOWS_INTERACTIVE_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  "$command = (Get-Command $env:SANDCASTLE_INTERACTIVE_COMMAND -CommandType Application -ErrorAction Stop).Source",
+  "$agentArgs = @(ConvertFrom-Json -InputObject $env:SANDCASTLE_INTERACTIVE_ARGS_JSON)",
+  "& $command @agentArgs",
+  "exit $LASTEXITCODE",
+].join("; ");
+
+/**
  * Create a no-sandbox provider.
  *
  * The returned provider runs the agent directly on the host. All three
@@ -177,14 +197,23 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
       ): Promise<{ exitCode: number }> => {
         return new Promise((resolve, reject) => {
           const [cmd, ...rest] = args;
-          // Agent CLIs on Windows are typically installed as `.cmd`/`.ps1`
-          // npm wrappers; bare `spawn("claude", …)` only resolves `.exe`
-          // without `shell: true`, so let cmd.exe handle PATHEXT lookup.
-          const proc = spawn(cmd!, rest, {
+          const isWindows = process.platform === "win32";
+          const interactiveEnv = isWindows
+            ? {
+                ...processEnv,
+                SANDCASTLE_INTERACTIVE_COMMAND: cmd!,
+                SANDCASTLE_INTERACTIVE_ARGS_JSON: JSON.stringify(rest),
+              }
+            : processEnv;
+          const spawnCommand = isWindows ? "powershell.exe" : cmd!;
+          const spawnArgs = isWindows
+            ? ["-NoLogo", "-NoProfile", "-Command", WINDOWS_INTERACTIVE_SCRIPT]
+            : rest;
+
+          const proc = spawn(spawnCommand, spawnArgs, {
             cwd: opts.cwd ?? worktreePath,
-            env: processEnv,
+            env: interactiveEnv,
             stdio: [opts.stdin, opts.stdout, opts.stderr] as StdioOptions,
-            shell: process.platform === "win32",
           });
 
           proc.on("error", (error: Error) => {

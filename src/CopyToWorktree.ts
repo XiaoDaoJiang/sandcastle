@@ -8,7 +8,7 @@ import {
   readlink,
   symlink,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Effect } from "effect";
 import {
   CopyToWorktreeError,
@@ -61,6 +61,7 @@ const copyTreeOnWindows = async (src: string, dest: string): Promise<void> => {
   }
 
   if (srcStat.isSymbolicLink()) {
+    await mkdir(dirname(dest), { recursive: true });
     const target = await readlink(src);
     try {
       await symlink(target, dest);
@@ -73,6 +74,7 @@ const copyTreeOnWindows = async (src: string, dest: string): Promise<void> => {
   }
 
   if (srcStat.isFile()) {
+    await mkdir(dirname(dest), { recursive: true });
     await copyFile(src, dest, fsConstants.COPYFILE_FICLONE);
   }
 };

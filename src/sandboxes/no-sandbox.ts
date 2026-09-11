@@ -36,6 +36,39 @@ export interface NoSandboxOptions {
 }
 
 /**
+ * AgentProvider builds non-interactive commands for POSIX shells, where single
+ * quotes delimit one argv value. Native Windows `cmd.exe` treats those single
+ * quotes as ordinary characters instead, so Codex would receive model names
+ * such as `'gpt-5.3-codex'` literally and exit before the first turn.
+ *
+ * Keep that POSIX command untouched for every other provider/runtime and only
+ * translate the small set of single-quoted values emitted by the Codex provider
+ * when noSandbox executes it through cmd.exe. TOML string overrides are
+ * rewritten to TOML literal strings (`key='value'`), which preserves the quotes
+ * Codex's `-c` parser needs without relying on cmd.exe double-quote semantics.
+ */
+export const normalizeCodexCommandForWindows = (command: string): string => {
+  if (!/^\s*codex(?:\.cmd)?\s/i.test(command)) {
+    return command;
+  }
+
+  return command.replace(/'([^']*)'/g, (_match, value: string) => {
+    const tomlString = value.match(/^([A-Za-z0-9_.-]+)="([^"]*)"$/);
+    if (tomlString && !tomlString[2]!.includes("'")) {
+      return `${tomlString[1]}='${tomlString[2]}'`;
+    }
+
+    if (/^[A-Za-z0-9._:/=@+\-]+$/.test(value)) {
+      return value;
+    }
+
+    // This path is not expected for current Codex-generated arguments, but
+    // retain a conservative cmd.exe-compatible fallback for future values.
+    return `"${value.replace(/"/g, '""')}"`;
+  });
+};
+
+/**
  * Create a no-sandbox provider.
  *
  * The returned provider runs the agent directly on the host. All three
@@ -71,9 +104,12 @@ export const noSandbox = (options?: NoSandboxOptions): NoSandboxProvider => ({
         // preserves the quoted command verbatim, `/c` runs it and exits.
         // `windowsVerbatimArguments` keeps Node from re-quoting our args.
         const shellCmd = isWindows ? "cmd.exe" : "sh";
+        const shellCommand = isWindows
+          ? normalizeCodexCommandForWindows(command)
+          : command;
         const shellArgs = isWindows
-          ? ["/d", "/s", "/c", command]
-          : ["-c", command];
+          ? ["/d", "/s", "/c", shellCommand]
+          : ["-c", shellCommand];
 
         return new Promise((resolve, reject) => {
           const proc = spawn(shellCmd, shellArgs, {

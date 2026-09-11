@@ -19,6 +19,33 @@ export type { ParsedStreamEvent, IterationUsage } from "./AgentProvider.js";
 
 const IDLE_WARNING_INTERVAL_MS = 60_000;
 
+export const formatAgentFailureDetail = ({
+  stderr,
+  resultText,
+  stdout,
+}: {
+  stderr: string;
+  resultText: string;
+  stdout: string;
+}): string => {
+  const structuredError = resultText.trim();
+  const stderrText = stderr.trim();
+
+  if (structuredError) {
+    if (stderrText && stderrText !== structuredError) {
+      return `${structuredError}\n\nstderr:\n${stderrText}`;
+    }
+    return structuredError;
+  }
+
+  if (stderrText) {
+    return stderrText;
+  }
+
+  const lines = stdout.split("\n").filter((line) => line.trim());
+  return lines.slice(-20).join("\n");
+};
+
 const invokeAgent = (
   sandbox: SandboxService,
   sandboxRepoDir: string,
@@ -189,16 +216,11 @@ const invokeAgent = (
       });
 
       if (execResult.exitCode !== 0) {
-        // Prefer stderr; fall back to resultText (from parsed stream events),
-        // then to the tail of raw stdout (last 20 non-empty lines).
-        let errorDetail = execResult.stderr;
-        if (!errorDetail.trim()) {
-          errorDetail = resultText;
-        }
-        if (!errorDetail.trim()) {
-          const lines = execResult.stdout.split("\n").filter((l) => l.trim());
-          errorDetail = lines.slice(-20).join("\n");
-        }
+        const errorDetail = formatAgentFailureDetail({
+          stderr: execResult.stderr,
+          resultText,
+          stdout: execResult.stdout,
+        });
         return yield* Effect.fail(
           new AgentError({
             message: `${provider.name} exited with code ${execResult.exitCode}:\n${errorDetail}`,

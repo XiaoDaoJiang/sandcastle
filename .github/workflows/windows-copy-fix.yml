@@ -1,9 +1,10 @@
-name: Windows copyToWorktree fix
+name: Windows compatibility fixes
 
 on:
   push:
     branches:
       - fix/windows-copy-to-worktree
+      - fix/windows-codex-no-sandbox
 
 jobs:
   windows-target:
@@ -34,6 +35,8 @@ jobs:
           }
 
           npx.cmd vitest run src/CopyToWorktree.test.ts --reporter=verbose
+      - name: Verify Windows Codex command transport
+        run: npx.cmd vitest run src/sandboxes/no-sandbox.windows-codex.test.ts --reporter=verbose
       - name: Windows full suite diagnostic
         continue-on-error: true
         run: npm test

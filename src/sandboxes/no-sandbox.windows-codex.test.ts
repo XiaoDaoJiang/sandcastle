@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { PassThrough, Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import {
   noSandbox,
@@ -27,7 +28,7 @@ describe("normalizeCodexCommandForWindows", () => {
 });
 
 describe("noSandbox Codex execution on Windows", () => {
-  itWindows("passes normalized argv through a codex.cmd wrapper", async () => {
+  const createFakeCodex = async () => {
     const root = await mkdtemp(join(tmpdir(), "sandcastle-codex-cmd-"));
     const binDir = join(root, "bin");
     await mkdir(binDir);
@@ -58,6 +59,12 @@ describe("noSandbox Codex execution on Windows", () => {
       },
     });
 
+    return { root, handle };
+  };
+
+  itWindows("passes normalized argv through a codex.cmd wrapper", async () => {
+    const { root, handle } = await createFakeCodex();
+
     try {
       const result = await handle.exec(
         `codex exec --json --dangerously-bypass-approvals-and-sandbox -m 'gpt-5.3-codex' -c 'model_reasoning_effort="high"'`,
@@ -81,4 +88,46 @@ describe("noSandbox Codex execution on Windows", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  itWindows(
+    "preserves an interactive prompt containing spaces and newlines as one argv value",
+    async () => {
+      const { root, handle } = await createFakeCodex();
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      let stdoutText = "";
+      let stderrText = "";
+      stdout.on("data", (chunk) => {
+        stdoutText += chunk.toString();
+      });
+      stderr.on("data", (chunk) => {
+        stderrText += chunk.toString();
+      });
+
+      const prompt = "Context line one\nline two with spaces & <tag>";
+
+      try {
+        const result = await handle.interactiveExec(
+          ["codex", "--model", "gpt-5.6-sol", prompt],
+          {
+            stdin: Readable.from([]),
+            stdout,
+            stderr,
+            cwd: root,
+          },
+        );
+
+        expect(result.exitCode, stderrText).toBe(0);
+        const printed = JSON.parse(stdoutText.trim());
+        expect(printed.args).toEqual([
+          "--model",
+          "gpt-5.6-sol",
+          prompt,
+        ]);
+      } finally {
+        await handle.close();
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
 });

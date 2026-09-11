@@ -40,9 +40,10 @@ const MAX_ITERATIONS = 10;
 
 // Default is fully automated/non-interactive. Set SANDCASTLE_AGENT_MODE to
 // "interactive" to hand the terminal directly to the agent TUI. Interactive
-// mode intentionally does not seed the prompt automatically, so you can first
-// choose model/settings (for example with Codex /model), then ask the agent to
-// read the printed prompt path and continue the phase manually.
+// mode intentionally seeds an empty prompt so createSandbox().interactive()
+// enters the TUI without submitting the task. You can first choose model/settings
+// (for example with Codex /model), then ask the agent to read the printed prompt
+// path and continue the phase manually.
 const AGENT_MODE = process.env.SANDCASTLE_AGENT_MODE ?? "run";
 if (AGENT_MODE !== "run" && AGENT_MODE !== "interactive") {
   throw new Error(
@@ -106,6 +107,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
           return sandbox.interactive({
             name: "implementer",
             agent: implementAgent,
+            prompt: "",
           });
         })()
       : await sandbox.run({
@@ -146,6 +148,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       const review = await sandbox.interactive({
         name: "reviewer",
         agent: reviewAgent,
+        prompt: "",
       });
       if (review.exitCode !== 0) {
         throw new Error(`Interactive reviewer exited with code ${review.exitCode}`);

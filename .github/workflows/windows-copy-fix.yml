@@ -21,6 +21,8 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+      - name: Verify agent error diagnostics
+        run: npx.cmd vitest run src/OrchestratorErrorDetail.test.ts --reporter=verbose
       - name: Verify without Unix cp on PATH
         shell: pwsh
         run: |

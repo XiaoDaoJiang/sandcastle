@@ -82,7 +82,7 @@ export const normalizeCodexCommandForWindows = (command: string): string => {
  */
 const WINDOWS_INTERACTIVE_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
-  "$command = (Get-Command $env:SANDCASTLE_INTERACTIVE_COMMAND -CommandType Application -ErrorAction Stop).Source",
+  "$command = (Get-Command $env:SANDCASTLE_INTERACTIVE_COMMAND -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source",
   "$agentArgs = @(ConvertFrom-Json -InputObject $env:SANDCASTLE_INTERACTIVE_ARGS_JSON)",
   "& $command @agentArgs",
   "exit $LASTEXITCODE",

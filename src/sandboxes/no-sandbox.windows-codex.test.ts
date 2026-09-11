@@ -1,7 +1,6 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import { PassThrough, Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import {
   noSandbox,
@@ -31,17 +30,23 @@ describe("noSandbox Codex execution on Windows", () => {
   const createFakeCodex = async () => {
     const root = await mkdtemp(join(tmpdir(), "sandcastle-codex-cmd-"));
     const binDir = join(root, "bin");
+    const argsPath = join(root, "args.json");
     await mkdir(binDir);
 
     const printer = join(binDir, "print-args.cjs");
     await writeFile(
       printer,
       [
+        "const fs = require('node:fs');",
         "let stdin = '';",
         "process.stdin.setEncoding('utf8');",
         "process.stdin.on('data', (chunk) => { stdin += chunk; });",
         "process.stdin.on('end', () => {",
-        "  console.log(JSON.stringify({ args: process.argv.slice(2), stdin }));",
+        "  const payload = JSON.stringify({ args: process.argv.slice(2), stdin });",
+        "  if (process.env.SANDCASTLE_TEST_ARGS_PATH) {",
+        "    fs.writeFileSync(process.env.SANDCASTLE_TEST_ARGS_PATH, payload);",
+        "  }",
+        "  console.log(payload);",
         "});",
         "",
       ].join("\n"),
@@ -56,10 +61,11 @@ describe("noSandbox Codex execution on Windows", () => {
       worktreePath: root,
       env: {
         PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        SANDCASTLE_TEST_ARGS_PATH: argsPath,
       },
     });
 
-    return { root, handle };
+    return { root, argsPath, handle };
   };
 
   itWindows("passes normalized argv through a codex.cmd wrapper", async () => {
@@ -92,33 +98,22 @@ describe("noSandbox Codex execution on Windows", () => {
   itWindows(
     "preserves an interactive prompt containing spaces and newlines as one argv value",
     async () => {
-      const { root, handle } = await createFakeCodex();
-      const stdout = new PassThrough();
-      const stderr = new PassThrough();
-      let stdoutText = "";
-      let stderrText = "";
-      stdout.on("data", (chunk) => {
-        stdoutText += chunk.toString();
-      });
-      stderr.on("data", (chunk) => {
-        stderrText += chunk.toString();
-      });
-
+      const { root, argsPath, handle } = await createFakeCodex();
       const prompt = "Context line one\nline two with spaces & <tag>";
 
       try {
         const result = await handle.interactiveExec(
           ["codex", "--model", "gpt-5.6-sol", prompt],
           {
-            stdin: Readable.from([]),
-            stdout,
-            stderr,
+            stdin: process.stdin,
+            stdout: process.stdout,
+            stderr: process.stderr,
             cwd: root,
           },
         );
 
-        expect(result.exitCode, stderrText).toBe(0);
-        const printed = JSON.parse(stdoutText.trim());
+        expect(result.exitCode).toBe(0);
+        const printed = JSON.parse(await readFile(argsPath, "utf-8"));
         expect(printed.args).toEqual([
           "--model",
           "gpt-5.6-sol",

@@ -60,6 +60,31 @@ describe("copyToWorktree", () => {
     }
   });
 
+  it.skipIf(process.platform !== "win32")(
+    "creates missing destination parents for nested files on Windows",
+    async () => {
+      const hostDir = await mkdtemp(join(tmpdir(), "cw-test-"));
+      const worktreeDir = await mkdtemp(join(tmpdir(), "cw-wt-"));
+
+      const relativePath = ".sandcastle/implement-prompt.md";
+      await mkdir(join(hostDir, ".sandcastle"));
+      await writeFile(join(hostDir, relativePath), "prompt");
+
+      try {
+        expect(existsSync(join(worktreeDir, ".sandcastle"))).toBe(false);
+
+        await Effect.runPromise(
+          copyToWorktree([relativePath], hostDir, worktreeDir),
+        );
+
+        expect(existsSync(join(worktreeDir, relativePath))).toBe(true);
+      } finally {
+        await rm(hostDir, { recursive: true, force: true });
+        await rm(worktreeDir, { recursive: true, force: true });
+      }
+    },
+  );
+
   it("recursively copies a directory tree", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "cw-test-"));
     const worktreeDir = await mkdtemp(join(tmpdir(), "cw-wt-"));

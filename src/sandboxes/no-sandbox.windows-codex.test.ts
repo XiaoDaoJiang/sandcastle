@@ -30,8 +30,10 @@ describe("noSandbox Codex execution on Windows", () => {
   const createFakeCodex = async () => {
     const root = await mkdtemp(join(tmpdir(), "sandcastle-codex-cmd-"));
     const binDir = join(root, "bin");
+    const decoyBinDir = join(root, "decoy-bin");
     const argsPath = join(root, "args.json");
     await mkdir(binDir);
+    await mkdir(decoyBinDir);
 
     const printer = join(binDir, "print-args.cjs");
     await writeFile(
@@ -55,12 +57,16 @@ describe("noSandbox Codex execution on Windows", () => {
       join(binDir, "codex.cmd"),
       `@echo off\r\nnode "${printer}" %*\r\n`,
     );
+    await writeFile(
+      join(decoyBinDir, "codex.cmd"),
+      "@echo off\r\nexit /b 99\r\n",
+    );
 
     const provider = noSandbox();
     const handle = await provider.create({
       worktreePath: root,
       env: {
-        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        PATH: `${binDir}${delimiter}${decoyBinDir}${delimiter}${process.env.PATH ?? ""}`,
         SANDCASTLE_TEST_ARGS_PATH: argsPath,
       },
     });
